@@ -1,0 +1,16 @@
+((*- extends 'latex/_inherit.tex.j2' -*))
+
+((* block packages *))
+((( super() )))
+% Alex packages
+\usepackage{cancel} % remove \require{cancel}
+\usepackage{array}  % for tables 
+\usepackage{calc}   % for tables
+((* endblock packages *))
+
+((* block definitions *))
+((( super() )))
+% Alex definitions
+\newcommand\require[1]{} % ignore \require{cancel}
+((* endblock definitions *))
+
