@@ -81,6 +81,10 @@ override this.-=))
     \usepackage[normalem]{ulem} % ulem is needed to support strikethroughs (\sout)
                                 % normalem makes italics be italics, not underlines
     \usepackage{mathrsfs}
+    %alex template
+    \usepackage{cancel} 
+    \usepackage{array}  % for tables 
+    \usepackage{calc}   % for tables
     ((* endblock packages *))
 
     ((* block definitions *))
@@ -176,6 +180,9 @@ override this.-=))
     \author{((( nb.metadata.authors | join(', ', attribute='name') )))}
     ((* endif *))
     ((* endblock author *))
+
+    % Alex definitions
+    \newcommand\require[1]{} % ignore \require{cancel}
     ((* endblock definitions *))
 
     ((* block commands *))
@@ -199,8 +206,8 @@ override this.-=))
 ((* block body *))
 \begin{document}
     ((* block predoc *))
-    ((* block maketitle *))\maketitle((* endblock maketitle *))
-    ((* block abstract *))((* endblock abstract *))
+   ((* block maketitle *))\maketitle((* endblock maketitle *))
+   ((* block abstract *))((* endblock abstract *))
     ((* endblock predoc *))
 
     ((( super() )))
