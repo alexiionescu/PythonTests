@@ -53,6 +53,7 @@ class AppThread(Thread):
 
 
 class MainApp:
+    threads: list[Thread]
     __gInstance__ = None
     @unique
     class LoopResult(Enum):
@@ -65,7 +66,7 @@ class MainApp:
         if MainApp.__gInstance__:
             raise Exception("Cannot instantiate a second MainApp")
         MainApp.__gInstance__ = self
-        self.threads: list = []
+        self.threads = []
         try:
             loopr = self.OnStart(sys.argv[1:])
             while loopr != MainApp.LoopResult.Quit:
@@ -88,7 +89,7 @@ class MainApp:
         thread.start()
 
     def OnStart(self, argv) -> LoopResult:
-        pass
+        return MainApp.LoopResult.Continue
 
     def OnLoop(self) -> LoopResult:
         return MainApp.LoopResult.Wait
