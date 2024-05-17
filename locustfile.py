@@ -141,6 +141,40 @@ class DCCUser(FastHttpUser):
             ) as resp:
                 pass
 
+    @tag("devices")
+    @task(5)
+    def dcc_devices(self):
+        if self.dcc_token and self.pid:
+            with self.rest(
+                "POST",
+                f"https://{self.dcc_api_host}/api.pts?otype=Devices.Endpoints&method=Count&token={self.dcc_token}&pid={self.pid}",
+                headers={
+                    "Host": self.dcc_api_host,
+                },
+                json={
+                    "Condition":"({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%')",
+                    "Line":"Sim Residents",
+                },
+                name="Devices.Endpoints:Count",
+            ) as resp:
+                pass
+            with self.rest(
+                "POST",
+                f"https://{self.dcc_api_host}/api.pts?otype=Devices.Endpoints&method=List&token={self.dcc_token}&pid={self.pid}",
+                headers={
+                    "Host": self.dcc_api_host,
+                },
+                json={
+                    "Start":0,"Length":20,
+                    "OrderC":[6,2],
+                    "OrderT":["ASC","ASC"],
+                    "Condition":"({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%') AND  EndpointTypes.Name != 'LineMaintenance'  AND Lines_.Name = 'Sim Residents'",
+                    "Having":"",
+                },
+                name="Devices.Endpoints:List",
+            ) as resp:
+                pass
+
     @tag("summary")
     @task(50)
     def dcc_summary(self):
