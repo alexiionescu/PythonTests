@@ -1,15 +1,49 @@
+# %% [markdown]
+# ## Python Learning Tests
+# PyPi Requirements (requires Window Reload after install)
+# - pip install pympler
 # %%
+from typing import Callable
 import numpy as np
 import json
 import timeit
-import math
 import sys
 import logging
 import re
 
+from pympler.asizeof import asizeof
+from timeit import default_timer as timer
 
+
+def timed_func(times: Callable | int = 1):
+    """
+    decorator for timeit and print a function
+    with repeat `times` optional first argument
+    """
+
+    def timer_func(func):
+        def wrapper(*args, **kwargs):
+            t1 = timer()
+            for _ in range(times - 1):
+                func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            t2 = timer()
+            print(f"{func.__name__}() executed {times} time(s) in {(t2-t1):.6f}s")
+            return result
+
+        return wrapper
+
+    if callable(times):
+        func = times
+        times = 1
+        return timer_func(func)
+    else:
+        return timer_func
+
+
+# %%
 class TestObject:
-    """ Test Object """
+    """Test Object"""
 
     xi = 200
     xc = 678 + 4j
@@ -146,78 +180,67 @@ class TestObject:
 
     def testFiles(self, name: str, *filter: str):
         cnt = 0
-        delimiter = "-" * 30
         with open(name) as fpin:
-            calls: dict = {}
             for line in fpin:
                 cnt += 1
                 fields = line.strip().split("\t")
-                ftype = fields[2]
-                fmsg = fields[3]
-                if ftype == "ACD":
-                    if fmsg == "new ACDCall":
-                        cid = fields[4]
-                        calls[cid] = {"clines": [fields], "out": False}
-                    elif fmsg == "del ACDCall":
-                        cid = fields[4]
-                        if cid in calls.keys():
-                            cinfo = calls.pop(cid, {})
-                            if cinfo["out"]:
-                                for cline in cinfo.get("clines"):
-                                    print(" ".join(cline))
-                                print(" ".join(fields))
-                                print(delimiter * 2)
-                    else:
-                        if fmsg != "Merge":
-                            cid = fields[4]
-                            consultid = ""
-                        else:
-                            cid = re.findall("dwCallID=\d+", fields[4])[0]
-                            consultid = re.findall("dwCallID=\d+", fields[6])[0]
-                        if cid in calls.keys():
-                            cinfo = calls[cid]
-                            if consultid:
-                                # not empty string is True, empty string is False
-                                if consultid in calls.keys():
-                                    consultinfo = calls[consultid]
-                                    cinfo["clines"].append([delimiter])
-                                    for cline in consultinfo["clines"]:
-                                        cinfo["clines"].append(cline)
-                                    cinfo["clines"].append([delimiter])
-                                    if consultinfo["out"]:
-                                        cinfo["out"] = True
-                            cinfo["clines"].append(fields)
-                            if not cinfo["out"]:
-                                if len(fields) > 5:
-                                    dbidm = re.findall("L:\d+", fields[5])
-                                    if dbidm:
-                                        # not empty list is True, empty list is False
-                                        for f in filter:
-                                            if f == dbidm[0]:
-                                                cinfo["out"] = True
-                                                break
-                elif ftype == "CALL EVENT":
-                    cid = fields[6]
-                    if cid in calls.keys():
-                        cinfo = calls[cid]
-                        cinfo["clines"].append(fields)
-                        if not cinfo["out"]:
-                            for f in filter:
-                                if f == fields[4] or f == " ".join(fields[3:5]):
-                                    # 'DEV=?' or '<Event> DEV=?' match
-                                    cinfo["out"] = True
-                                    break
-                elif ftype == "UPL NOTIFY":
-                    cid = fields[6]
-                    if cid in calls.keys():
-                        calls[cid]["clines"].append(fields)
-                elif ftype == "DB":
-                    cid = re.findall("dwCallID=\d+", fmsg)[0]
-                    if cid in calls.keys():
-                        calls[cid]["clines"].append(fields)
+                re.findall(r"id=(\d+)", fields[1])
 
         self.Result = cnt
         self.resultFormat = ">>> parsed lines cnt: {}"
+
+    def testListComprehension(self, size=1000, sub_size=1000):
+        type DictType = dict[str, dict[str, int]] | dict[str, dict[str, str]]
+
+        x: list[DictType]  # unique objetcs list
+        mx: list[DictType] = []  # s members reference object list
+        cat = "sss"
+        sub_cat = "zlll"
+        # fmt: off
+        x = [
+            {cat: {"ll0": 3}},
+            {cat: {"ll2": 'input("Type ll2: ")'}},
+            {"vvv": {sub_cat: 'input("Type lll: ")'}},
+            {"vvv": {"pp0": 86596}},
+            {cat: {"ll1": "ll1 value", sub_cat: f"{sub_cat} value 1"}},
+            {cat: {"ll4": "ll4 value", sub_cat: f"{sub_cat} value 2"}},
+        ]
+        # fmt: on
+        sss_unique_cnt = len([value for p in x if (value := p.get(cat)) is not None])
+        # extend x, build mx
+        for i in range(size * len(x)):
+            item = x[i % len(x)]
+            if i < len(x):  # buildup x
+                sss_val = item.get(cat)
+                if sss_val and sss_val.get(sub_cat):
+                    for j in range(sub_size):
+                        sss_val[f"ll{j:02d}"] = f"ll{j:02d} value"
+            mx.append(item)
+
+        # print(mx[1].get(cat, {}).get("ll2", "Not Found"))
+        # Walrus Operator and List Comprehension
+        @timed_func(1000)
+        def process_list(mx, cat, sub_cat):
+            cat_vals = [value for p in mx if (value := p.get(cat)) is not None]
+            return cat_vals, [
+                value for s in cat_vals if (value := s.get(sub_cat)) is not None
+            ]
+
+        cat_vals, cat_sub_vals = process_list(mx, cat, sub_cat)
+        self.Result = len(cat_sub_vals)
+
+        # equality test
+        i = 1 % sss_unique_cnt
+        k = 2 % sss_unique_cnt
+        j = i + 4 * sss_unique_cnt
+        print(id(cat_vals[i]), id(cat_vals[j]), cat_vals[i] == cat_vals[j])
+        print(id(cat_vals[i]), id(cat_vals[k]), cat_vals[i] == cat_vals[k])
+        # sizeof
+        print("x        -> size =", asizeof(x), "len=", len(x))
+        print("mx       -> size =", asizeof(mx), "len=", len(mx))
+        print("cat_vals -> size =", asizeof(cat_vals), "len=", len(cat_vals))
+        print("sub_vals -> size =", asizeof(cat_sub_vals), "len=", len(cat_sub_vals))
+        self.resultFormat = "Found {} matches"
 
     def printResult(self):
         if isinstance(self.Result, tuple):
@@ -249,7 +272,7 @@ if "__main__" == __name__:
     )
     logger = logging.getLogger()
     t1 = TestObject(xl=[1, "1", True, 1, "1", None], xi=199)
-    if sys.argv[0] == "ipykernel_launcher":
+    if sys.argv[0].endswith("ipykernel_launcher.py"):
         # logger.setLevel(logging.DEBUG)
         def mainTester():
             # exec(input("Insert Expression"),globals(),locals())
@@ -260,8 +283,9 @@ if "__main__" == __name__:
             # t1.testTime('t1.testMatrix()')
             # t1.testSequences([True, 1, "1", True, 1, "1" , False, 1+2j,None])  # True is 1 and 0 is False
             # t1.testBits(2**12-1)
-            t1.testFormating()
+            # t1.testFormating()
             # t1.testFiles("tests/test.log", "Established DEV=2798")
+            t1.testListComprehension(1000, 100000)
 
         mainTester()
         t1.printResult()
@@ -270,3 +294,5 @@ if "__main__" == __name__:
         print(">>> exec", code)
         exec(code, globals(), locals())
         t1.printResult()
+
+# %%
