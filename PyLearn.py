@@ -242,6 +242,26 @@ class TestObject:
         print("sub_vals -> size =", asizeof(cat_sub_vals), "len=", len(cat_sub_vals))
         self.resultFormat = "Found {} matches"
 
+    def testDictComprehension(self, size=1000):
+        rng = np.random.default_rng()
+        d = {f"key{i:04d}": rng.standard_normal(10) for i in range(size)}
+        # print(d["key0100"])
+        d_var = [
+            {k: var for k in d if (var := np.var(d[k])) >= 0.0 and var <= 0.1},
+            {k: var for k in d if (var := np.var(d[k])) > 0.1 and var <= 0.2},
+            {k: var for k in d if (var := np.var(d[k])) > 0.2 and var <= 0.3},
+            {k: var for k in d if (var := np.var(d[k])) > 0.3 and var <= 0.4},
+            {k: var for k in d if (var := np.var(d[k])) > 0.4 and var <= 0.5},
+        ]
+        print("d   -> size =", asizeof(d), "len=", len(d))
+        self.Result = tuple(len(dv) / len(d) for dv in d_var)
+        self.resultFormat = (
+            "testDictComprehension variance \n"
+            "[0.0,0.1]={:.2%}\n(0.1,0.2]={:.2%}\n"
+            "(0.2,0.3]={:.2%}\n(0.3,0.4]={:.2%}\n"
+            "(0.4,0.5]={:.2%}"
+        )
+
     def printResult(self):
         if isinstance(self.Result, tuple):
             print(
@@ -285,7 +305,8 @@ if "__main__" == __name__:
             # t1.testBits(2**12-1)
             # t1.testFormating()
             # t1.testFiles("tests/test.log", "Established DEV=2798")
-            t1.testListComprehension(1000, 100000)
+            # t1.testListComprehension(10000, 100000)
+            t1.testDictComprehension(10000)
 
         mainTester()
         t1.printResult()
