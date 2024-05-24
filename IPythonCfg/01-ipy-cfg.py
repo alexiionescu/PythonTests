@@ -1,4 +1,4 @@
-from sys import platform, modules
+import sys
 from typing import Callable
 import numpy as np
 import re
@@ -10,7 +10,7 @@ from traitlets.config.manager import BaseJSONConfigManager
 
 ipython = get_ipython()
 
-if platform == "win32":
+if sys.platform == "win32":
     """
     Register Powershell Cell Magic
     """
@@ -37,15 +37,12 @@ if platform == "win32":
         else:
             return ipython.run_cell_magic("pwsh", line, cell)
 
-elif platform == "linux":
+elif sys.platform == "linux":
     pass
-elif platform == "darwin":
+elif sys.platform == "darwin":
     pass
 
 from IPython.display import display, Markdown
-
-def printmd(string):
-    display(Markdown(string))
 
 
 class IPythonShellEx:
@@ -80,7 +77,11 @@ class IPythonShellEx:
             return timer_func
 
     @staticmethod
-    def print_matrix(array, format="%.3f"):
+    def printmd(string):
+        display(Markdown(string))
+
+    @staticmethod
+    def printmd_matrix(array, format="%.3f"):
         data = ""
         for line in array:
             for element in line:
