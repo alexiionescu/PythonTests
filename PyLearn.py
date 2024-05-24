@@ -11,7 +11,7 @@ import sys
 import logging
 import re
 
-from pympler.asizeof import asizeof
+from pympler.asizeof import asizeof # type: ignore
 from timeit import default_timer as timer
 
 
@@ -135,7 +135,7 @@ class TestObject:
     def testTinker(self):
         import tkinter as tk
         from tkinter import filedialog
-        import pandas as pd
+        import pandas as pd # type: ignore
 
         root = tk.Tk()
 
@@ -192,8 +192,8 @@ class TestObject:
     def testListComprehension(self, size=1000, sub_size=1000):
         type DictType = dict[str, dict[str, int]] | dict[str, dict[str, str]]
 
-        x: list[DictType]  # unique objetcs list
-        mx: list[DictType] = []  # s members reference object list
+        x: list[DictType]
+        mx: list[DictType] = []
         cat = "sss"
         sub_cat = "zlll"
         # fmt: off
@@ -310,7 +310,7 @@ if "__main__" == __name__:
 
         mainTester()
         t1.printResult()
-    else:
+    elif len(sys.argv) > 2:
         code = "t1." + sys.argv[1] + "('" + "','".join(sys.argv[2:]) + "')"
         print(">>> exec", code)
         exec(code, globals(), locals())
