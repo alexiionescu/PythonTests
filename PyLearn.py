@@ -51,8 +51,9 @@ class TestObject:
     xd = {"k1": 1, "k2": "v2", "k3": [True, None]}
 
     def __init__(self, **kwargs):
-        for pname, pval in kwargs.items():
-            setattr(self, pname, pval)
+        # for pname, pval in kwargs.items():
+        #     setattr(self, pname, pval)
+        self.__dict__.update(kwargs)
 
     def __str__(self):
         return json.dumps(self, indent=4, default=lambda x: x.__dict__)
