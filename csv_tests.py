@@ -112,9 +112,9 @@ def run(path: Path, basename):
 if __name__ == "__main__":
     pd.options.display.float_format = "{:.2f}".format
     path = Path(sys.argv[1])
-    # download(
-    #     path,
-    #     "pv_part_cnty_eup_",
-    #     "https://prezenta.roaep.ro/europarlamentare09062024/data/csv/sicpv/",
-    # )
+    download(
+        path,
+        "pv_part_cnty_eup_",
+        "https://prezenta.roaep.ro/europarlamentare09062024/data/csv/sicpv/",
+    )
     run(path, "pv_part_cnty_eup_")
