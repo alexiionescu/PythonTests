@@ -71,6 +71,7 @@ def download(path: Path, basename, url_base):
             urllib.request.install_opener(opener)
             try:
                 _, headers = urllib.request.urlretrieve(url_base + filename, f)
+                time.sleep(1)
                 if "Last-Modified" in headers:
                     mtime = calendar.timegm(
                         time.strptime(
@@ -88,6 +89,10 @@ def download(path: Path, basename, url_base):
 
 
 def run(path: Path, basename):
+    # for f in path.glob(f"**/{basename}*.csv"):
+    #     print(f"parse {f}")
+    #     pd.read_csv(f)
+        
     files = path.glob(f"**/{basename}*.csv")
     df = pd.concat((pd.read_csv(f) for f in files), ignore_index=True)
     sum_series = df.loc[:, df.columns.str.endswith("-voturi")].sum(numeric_only=True)
