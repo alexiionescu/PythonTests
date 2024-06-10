@@ -92,24 +92,29 @@ def run(path: Path, basename):
     # for f in path.glob(f"**/{basename}*.csv"):
     #     print(f"parse {f}")
     #     pd.read_csv(f)
-        
+
     files = path.glob(f"**/{basename}*.csv")
     df = pd.concat((pd.read_csv(f) for f in files), ignore_index=True)
-    sum_series = df.loc[:, df.columns.str.endswith("-voturi")].sum(numeric_only=True)
+    max_votes = df["a"].sum()
+    df_col_filter = df.loc[:, df.columns.str.endswith("-voturi")]
+    sum_series = df_col_filter.sum(numeric_only=True)
     total = sum_series.sum()
-    tr_dict = {
-        str(k)[:-7]: p for (k, v) in sum_series.items() if (p := 100 * v / total) > 2
-    }
-    df_perc = pd.DataFrame(tr_dict.items(), columns=["Candidat", "VotesPerc"])
-    print(df_perc.sort_values("VotesPerc", ascending=False))
+    tr_dict = [
+        [str(k)[:-7], p, v] for (k, v) in sum_series.items() if (p := v / total) > 0.02
+    ]
+    df_perc = pd.DataFrame(tr_dict, columns=["Candidat", "VotesP", "Votes"])
+    df_perc["Votes%"] = 100 * df_perc.VotesP
+    df_perc["MEP(s)"] = 33 * df_perc.VotesP
+    print(df_perc.sort_values("Votes", ascending=False))
+    print(f"\nTotal votes: {total} from {max_votes} ({100 * total / max_votes:.02f}%)")
 
 
 if __name__ == "__main__":
     pd.options.display.float_format = "{:.2f}".format
     path = Path(sys.argv[1])
-    download(
-        path,
-        "pv_part_cnty_eup_",
-        "https://prezenta.roaep.ro/europarlamentare09062024/data/csv/sicpv/",
-    )
+    # download(
+    #     path,
+    #     "pv_part_cnty_eup_",
+    #     "https://prezenta.roaep.ro/europarlamentare09062024/data/csv/sicpv/",
+    # )
     run(path, "pv_part_cnty_eup_")
