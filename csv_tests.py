@@ -13,6 +13,7 @@ RO_COUNTIES = [
     "ar",
     "ag",
     "bc",
+    "bh",
     "bn",
     "bt",
     "br",
@@ -34,11 +35,14 @@ RO_COUNTIES = [
     "is",
     "if",
     "mm",
+    "mh",
     "ms",
     "nt",
     "ot",
     "ph",
+    "sm",
     "sj",
+    "sb",
     "sv",
     "tr",
     "tm",
@@ -47,6 +51,7 @@ RO_COUNTIES = [
     "vs",
     "vn",
     "b",
+    "sr",  # diaspora
 ]
 
 
@@ -58,7 +63,7 @@ def download(path: Path, basename, url_base):
         file_mtime = None
         if f.exists():
             file_mtime = f.stat().st_mtime
-        if not file_mtime or now - file_mtime > 30:
+        if not file_mtime or now - file_mtime > 3600:
             opener = urllib.request.build_opener()
             if file_mtime:
                 timestr = time.strftime(
