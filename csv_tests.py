@@ -8,52 +8,16 @@ import time
 from datetime import datetime
 import re
 
-
+# fmt: off
 RO_COUNTIES = [
-    "ab",
-    "ar",
-    "ag",
-    "bc",
-    "bh",
-    "bn",
-    "bt",
-    "br",
-    "bv",
-    "bz",
-    "cl",
-    "cs",
-    "cj",
-    "ct",
-    "cv",
-    "db",
-    "dj",
-    "gl",
-    "gr",
-    "gj",
-    "hr",
-    "hd",
-    "il",
-    "is",
-    "if",
-    "mm",
-    "mh",
-    "ms",
-    "nt",
-    "ot",
-    "ph",
-    "sm",
-    "sj",
-    "sb",
-    "sv",
-    "tr",
-    "tm",
-    "tl",
-    "vl",
-    "vs",
-    "vn",
+    "ab", "ar", "ag", "bc", "bh", "bn", "bt", "br", "bv", "bz", "cl", "cs",
+    "cj", "ct", "cv", "db", "dj", "gl", "gr", "gj", "hr", "hd", "il", "is",
+    "if", "mm", "mh", "ms", "nt", "ot", "ph", "sm", "sj", "sb", "sv", "tr", 
+    "tm", "tl", "vl", "vs", "vn",
     "b",
     "sr",  # diaspora
 ]
+# fmt: on
 
 
 def download(path: Path, basename, url_base):
@@ -109,7 +73,8 @@ def run(path: Path, basename):
     tr_dict = [
         [str(k)[:-7], p, v]
         for (k, v) in sum_series.items()
-        if (p := v / total) >= 0.05 or (not re.search(re_is_group, str(k)) and p >= 0.03)
+        if (p := v / total) >= 0.05
+        or (not re.search(re_is_group, str(k)) and p >= 0.03)
     ]
     df_perc = pd.DataFrame(tr_dict, columns=["Candidat", "VotesP", "Votes"])
     total_eligible = df_perc.VotesP.sum()
