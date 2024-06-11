@@ -40,18 +40,28 @@ def download(path: Path, basename, url_base):
                 print(f"downloading new {f.name} ... ")
             urllib.request.install_opener(opener)
             try:
-                _, headers = urllib.request.urlretrieve(url_base + filename, f)
-                time.sleep(1)
-                if "Last-Modified" in headers:
-                    mtime = calendar.timegm(
-                        time.strptime(
-                            headers["Last-Modified"], "%a, %d %b %Y %H:%M:%S GMT"
-                        )
-                    )
-                    os.utime(f, (mtime, mtime))
-                    print(f"downloaded {f.name} Modified {headers['Last-Modified']}")
+                for _ in range(3):
+                    _, headers = urllib.request.urlretrieve(url_base + filename, f)
+                    try:
+                        pd.read_csv(f) # check valid csv
+                        if "Last-Modified" in headers:
+                            mtime = calendar.timegm(
+                                time.strptime(
+                                    headers["Last-Modified"], "%a, %d %b %Y %H:%M:%S GMT"
+                                )
+                            )
+                            os.utime(f, (mtime, mtime))
+                            print(f"downloaded {f.name} Modified {headers['Last-Modified']}")
+                        else:
+                            print(f"downloaded {f.name} No Last-Modified header")
+                        time.sleep(0.2)
+                        break
+                    except: # invalid csv, sleep and retry
+                        print(f"retry {f.name} ... ")
+                        f.unlink()
+                        time.sleep(10)
                 else:
-                    print(f"downloaded {f.name} No Last-Modified header")
+                     print(f"ERROR: Could not download valid {f.name} ... ")
             except urllib.error.HTTPError as e:
                 if e.code != 304:
                     print(f"Could not download {f.name} Error: {e}")
@@ -59,10 +69,6 @@ def download(path: Path, basename, url_base):
 
 
 def run(path: Path, basename):
-    # for f in path.glob(f"**/{basename}*.csv"):
-    #     print(f"parse {f}")
-    #     pd.read_csv(f)
-
     files = path.glob(f"**/{basename}*.csv")
     df = pd.concat((pd.read_csv(f) for f in files), ignore_index=True)
     max_votes = df["a"].sum()
