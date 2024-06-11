@@ -6,6 +6,7 @@ import sys
 import urllib.request
 import time
 from datetime import datetime
+import re
 
 
 RO_COUNTIES = [
@@ -104,12 +105,16 @@ def run(path: Path, basename):
     df_col_filter = df.loc[:, df.columns.str.endswith("-voturi")]
     sum_series = df_col_filter.sum(numeric_only=True)
     total = sum_series.sum()
+    re_is_group = re.compile(r"ALIANȚA|PARTID|UNIUNEA", flags=re.I)
     tr_dict = [
-        [str(k)[:-7], p, v] for (k, v) in sum_series.items() if (p := v / total) > 0.02
+        [str(k)[:-7], p, v]
+        for (k, v) in sum_series.items()
+        if (p := v / total) >= 0.05 or (not re.search(re_is_group, str(k)) and p >= 0.03)
     ]
     df_perc = pd.DataFrame(tr_dict, columns=["Candidat", "VotesP", "Votes"])
+    total_eligible = df_perc.VotesP.sum()
     df_perc["Votes%"] = 100 * df_perc.VotesP
-    df_perc["MEP(s)"] = 33 * df_perc.VotesP
+    df_perc["MEP(s)"] = 33 * df_perc.VotesP / total_eligible
     print(df_perc.sort_values("Votes", ascending=False))
     print(f"\nTotal votes: {total} from {max_votes} ({100 * total / max_votes:.02f}%)")
 
