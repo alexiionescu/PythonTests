@@ -1,7 +1,9 @@
 import sys
 from typing import Callable
 import numpy as np
+import pandas as pd
 import re
+from datetime import datetime, date
 from pympler.asizeof import asizeof  # type: ignore
 
 from IPython.core.magic import register_line_cell_magic
@@ -10,6 +12,13 @@ from traitlets.config.manager import BaseJSONConfigManager
 
 ipython = get_ipython()
 
+def clipboard(sep='\\s+', **kwargs):
+    c = pd.read_clipboard(sep=sep,**kwargs)
+    if len(c) == 0: #1 row (headers only)
+        return list(c)
+    else:
+        return c
+        
 if sys.platform == "win32":
     """
     Register Powershell Cell Magic
