@@ -14,6 +14,7 @@ class ReportFile:
     filename: str
     MAX_ENTRIES: int = 500000
     stdout_regex: re.Pattern | None = None
+    fh = None
 
     def __init__(self, args):
         if args.report_file:
@@ -124,6 +125,10 @@ class MyTshark:
             case "json":
                 self.p_args += ["-e", "ip.src", "-e", "udp.srcport"]
                 self.p_args += ["-e", "json.member_with_value"]
+            case "tls_json":
+                self.p_args += ["-e", "tcp.dstport", "-e", "tcp.stream"]
+                self.p_args += ["-e", "http.request.uri.query.parameter"]
+                self.p_args += ["-e", "json.member_with_value"]
             case "sip":
                 self.p_args += ["-e", "ip.src", "-e", "udp.srcport"]
                 self.p_args += ["-e", "sip.from.addr", "-e", "sip.to.addr"]
@@ -165,8 +170,10 @@ class MyTshark:
     @staticmethod
     def add_proto_display_filter_args(proto):
         match proto:
-            case "tcp_tap" | "udp_tap" | "snom" | "sip" | "json":
+            case "tcp_tap" | "udp_tap" | "snom" | "sip":
                 return proto
+            case "json" | "tls_json":
+                return "json"
             case "en6080":
                 return "http or (websocket and wsino.scicode != 125)"
             case "mgcp":
@@ -212,6 +219,7 @@ Chossing no {if_matches[0].group(1)}.
                 "mqtt",
                 "sip",
                 "json",
+                "tls_json",
                 "udp_tap",
                 "tcp_tap",
                 "en6080",
