@@ -6,8 +6,18 @@ from locust import User, tag, task, run_single_user
 from locust import FastHttpUser
 import tomllib
 import json
-from uuid import UUID,uuid4
-import websocket # pip install websocket-client
+from uuid import UUID, uuid4
+import websocket  # pip install websocket-client
+
+from datetime import datetime, timedelta
+
+
+def datetime_to_excel(dt):
+    # Excel's base date
+    excel_base_date = datetime(1899, 12, 30)
+    delta = dt - excel_base_date
+    return float(delta.days) + (float(delta.seconds) / 86400)
+
 
 def get_toml_cfg(self):
     with open("locustcfg.toml", "rb") as f:
@@ -15,6 +25,7 @@ def get_toml_cfg(self):
         for k in cfg:
             logging.debug(f"{self.__class__.__name__}.{k}= {cfg[k]}")
             setattr(self, k, cfg[k])
+
 
 class DCCWebSocket:
 
@@ -34,12 +45,15 @@ class DCCWebSocket:
     def ws_send(self, body, name=None, context={}, opcode=websocket.ABNF.OPCODE_TEXT):
         logging.debug(f"WSS: {body}")
         self.ws.send(body, opcode)
+
+
 class DCCUser(FastHttpUser, DCCWebSocket):
     host = "TEST"
     admin_api_host: str | None = None
     dcc_api_host: str | None = None
     dcc_instance_name: str | None = None
     dcc_instance_guid: str | None = None
+    computer_guid: str | None = None
     admin_token_global: str | None = None
     admin_token: str | None = None
     dcc_token: str | None = None
@@ -94,7 +108,9 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 self.admin_token = resp.json().get("Token")
                 for lic_obj in resp.json().get("Licenses"):
                     lic = lic_obj.get("Admin::LicensesKey")
-                    logging.debug(f"{self.uuid} CHECK Instance {lic.get("Key")} '{lic.get("Name")}'")
+                    logging.debug(
+                        f"{self.uuid} CHECK Instance {lic.get("Key")} '{lic.get("Name")}'"
+                    )
                     if self.dcc_instance_name and self.dcc_instance_name == lic.get(
                         "Name"
                     ):
@@ -107,7 +123,9 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                         break
 
         if self.dcc_instance_guid and self.admin_token_global and self.admin_token:
-            logging.debug(f"{self.uuid} REQ ChooseLicense {self.dcc_instance_guid} '{self.dcc_instance_name}'")
+            logging.debug(
+                f"{self.uuid} REQ ChooseLicense {self.dcc_instance_guid} '{self.dcc_instance_name}'"
+            )
             with self.rest(
                 "POST",
                 f"https://{self.admin_api_host}/api.pts?otype=Admin.MainServer&method=ChooseLicense&token={self.admin_token_global}",
@@ -115,10 +133,11 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.admin_api_host,
                 },
                 json={"Token": self.admin_token, "Key": self.dcc_instance_guid},
-                name="Admin.MainServe:ChooseLicense",
+                name="Admin.MainServer:ChooseLicense",
             ) as resp:
                 addr_ssl = resp.json().get("AddressSSL")
                 self.dcc_token = resp.json().get("Token")
+                self.computer_guid = resp.json().get("ComputerGUID")
                 if not self.dcc_api_host:
                     self.dcc_api_host = addr_ssl
                     logging.debug(f"{self.uuid} ChooseLicense AddressSSL {addr_ssl}")
@@ -155,7 +174,9 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 if resp.status_code == 200:
                     self.pid = None
                     self.dcc_token = None
-                    logging.info(f"{self.uuid} User Logout Successfull. WS sessions: {self.ws_sessions}")
+                    logging.info(
+                        f"{self.uuid} User Logout Successfull. WS sessions: {self.ws_sessions}"
+                    )
 
     @tag("about")
     @task
@@ -168,13 +189,55 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.admin_api_host,
                     "Referer": f"{self.host}/",
                 },
-                json={"GUID": "19424eb7-e5c6-4f4a-a077-b9d058eb56d9"},
+                json={"GUID": self.computer_guid},
                 name="Watcher.Server:GetComputerVersion",
             ) as _:
                 pass
 
-    @tag('processinfo')
-    @task
+    @tag("watcher")
+    @task(200)
+    def watcher_comp_info(self):
+        if self.admin_token:
+            with self.rest(
+                "POST",
+                f"https://{self.admin_api_host}/api.pts?otype=Watcher.Server&method=GetComputerInfo&token={self.admin_token}",
+                headers={
+                    "Host": self.admin_api_host,
+                    "Referer": f"{self.host}/",
+                },
+                json={
+                    "GUID": self.computer_guid,
+                    "Version": 1,
+                    "PackagesDate": datetime_to_excel(datetime.now()),
+                    "ProcessID": self.pid,
+                    "Updated": True,
+                },
+                name="Watcher.Server:GetComputerInfo",
+            ) as _:
+                pass
+
+    @tag("watcher")
+    @task(100)
+    def watcher_signal_client(self):
+        if self.admin_token_global:
+            with self.rest(
+                "POST",
+                f"https://{self.admin_api_host}/api.pts?otype=Admin.MainServer&method=SignalClient&token={self.admin_token_global}",
+                headers={
+                    "Host": self.admin_api_host,
+                    "Referer": f"{self.host}/",
+                },
+                json={
+                    "GUID": self.computer_guid,
+                    "Key": self.dcc_instance_guid,
+                    "Date": datetime_to_excel(datetime.now()),
+                },
+                name="Admin.MainServer:SignalClient",
+            ) as _:
+                pass
+
+    @tag("processinfo")
+    @task(100)
     def dcc_proccess_info(self):
         with self.rest(
             "POST",
@@ -197,13 +260,15 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 logging.info(f"{self.uuid} New websocket connection")
                 self.ws_connect(f"wss://{self.dcc_api_host}/api.ws")
 
-                self.ws_send('{"Type":"ConnectBulk","ConnectionsInfo":'
-                             '[{"Cmd::ConnectionInfo":{"ObjectType":"DCC","ObjectName":"Alarms","EventType":"RuntimeSkillsChanged","Connect":true}},'
-                              '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"Created","Connect":true}},'
-                              '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"Closing","Connect":true}},'
-                              '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"StateChanged","Connect":true}},'
-                              '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"SubjectChanged","Connect":true}}]}')
-                
+                self.ws_send(
+                    '{"Type":"ConnectBulk","ConnectionsInfo":'
+                    '[{"Cmd::ConnectionInfo":{"ObjectType":"DCC","ObjectName":"Alarms","EventType":"RuntimeSkillsChanged","Connect":true}},'
+                    '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"Created","Connect":true}},'
+                    '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"Closing","Connect":true}},'
+                    '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"StateChanged","Connect":true}},'
+                    '{"Cmd::ConnectionInfo":{"ObjectType":"Routing","ObjectName":"Activities","EventType":"SubjectChanged","Connect":true}}]}'
+                )
+
                 # update pid, execute this to count the websocket connection count
                 with self.rest(
                     "POST",
@@ -235,7 +300,7 @@ class DCCUser(FastHttpUser, DCCWebSocket):
         pass
 
     @tag("devices")
-    @task(10)
+    @task(20)
     def dcc_devices(self):
         if self.dcc_token and self.pid:
             with self.rest(
@@ -245,8 +310,8 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.dcc_api_host,
                 },
                 json={
-                    "Condition":"({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%')",
-                    "Line":"Sim Residents",
+                    "Condition": "({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%')",
+                    "Line": "Sim Residents",
                 },
                 name="Devices.Endpoints:Count",
             ) as _:
@@ -258,11 +323,12 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.dcc_api_host,
                 },
                 json={
-                    "Start":0,"Length":20,
-                    "OrderC":[6,2],
-                    "OrderT":["ASC","ASC"],
-                    "Condition":"({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%') AND  EndpointTypes.Name != 'LineMaintenance'  AND Lines_.Name = 'Sim Residents'",
-                    "Having":"",
+                    "Start": 0,
+                    "Length": 20,
+                    "OrderC": [6, 2],
+                    "OrderT": ["ASC", "ASC"],
+                    "Condition": "({1} LIKE '%11%' OR {2} LIKE '%11%' OR {13} LIKE '%11%' OR {3} LIKE '%11%' OR {4} LIKE '%11%' OR {5} LIKE '%11%' OR {6} LIKE '%11%' OR {9} LIKE '%11%' OR {10} LIKE '%11%') AND  EndpointTypes.Name != 'LineMaintenance'  AND Lines_.Name = 'Sim Residents'",
+                    "Having": "",
                 },
                 name="Devices.Endpoints:List",
             ) as _:
@@ -354,7 +420,7 @@ class DCCUser(FastHttpUser, DCCWebSocket):
             self.summary_changed = False
 
     @tag("history")
-    @task(10)
+    @task(20)
     def dcc_history(self):
         if self.dcc_token and self.pid:
             with self.rest(
@@ -364,9 +430,9 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.dcc_api_host,
                 },
                 json={
-                    "Condition":"({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
-                    "Having":"(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
-                    "FromArchive":False
+                    "Condition": "({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
+                    "Having": "(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
+                    "FromArchive": False,
                 },
                 name="DCC::Alarms:HistoryCount",
             ) as _:
@@ -378,10 +444,13 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.dcc_api_host,
                 },
                 json={
-                    "Start":0,"Length":100,"OrderC":[1],"OrderT":["DESC"],
-                    "Condition":"({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
-                    "Having":"(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
-                    "FromArchive":False
+                    "Start": 0,
+                    "Length": 100,
+                    "OrderC": [1],
+                    "OrderT": ["DESC"],
+                    "Condition": "({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
+                    "Having": "(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
+                    "FromArchive": False,
                 },
                 name="DCC::Alarms:HistoryList",
             ) as _:
@@ -397,7 +466,7 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 headers={
                     "Host": self.dcc_api_host,
                 },
-                json={"Condition":"","Having":""},
+                json={"Condition": "", "Having": ""},
                 name="DCC.Contacts:ResidentsCount",
             ) as _:
                 pass
@@ -407,7 +476,14 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 headers={
                     "Host": self.dcc_api_host,
                 },
-                json={"Start":0,"Length":100,"OrderC":[1],"OrderT":["ASC"],"Condition":"","Having":""},
+                json={
+                    "Start": 0,
+                    "Length": 100,
+                    "OrderC": [1],
+                    "OrderT": ["ASC"],
+                    "Condition": "",
+                    "Having": "",
+                },
                 name="DCC.Contacts:ResidentsList",
             ) as _:
                 pass
@@ -422,7 +498,7 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 headers={
                     "Host": self.dcc_api_host,
                 },
-                json={"Condition":"","Having":""},
+                json={"Condition": "", "Having": ""},
                 name="DCC.Contacts:EmployeesCount",
             ) as _:
                 pass
@@ -432,10 +508,18 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 headers={
                     "Host": self.dcc_api_host,
                 },
-                json={"Start":0,"Length":100,"OrderC":[1],"OrderT":["ASC"],"Condition":"","Having":""},
+                json={
+                    "Start": 0,
+                    "Length": 100,
+                    "OrderC": [1],
+                    "OrderT": ["ASC"],
+                    "Condition": "",
+                    "Having": "",
+                },
                 name="DCC.Contacts:EmployeesList",
             ) as _:
                 pass
+
 
 if __name__ == "__main__":
     run_single_user(DCCUser)
