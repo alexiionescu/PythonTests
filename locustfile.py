@@ -178,63 +178,63 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                         f"{self.uuid} User Logout Successfull. WS sessions: {self.ws_sessions}"
                     )
 
-    @tag("about")
-    @task
-    def admin_about(self):
-        if self.admin_token:
-            with self.rest(
-                "POST",
-                f"https://{self.admin_api_host}/api.pts?otype=Watcher.Server&method=GetComputerVersion&token={self.admin_token}",
-                headers={
-                    "Host": self.admin_api_host,
-                    "Referer": f"{self.host}/",
-                },
-                json={"GUID": self.computer_guid},
-                name="Watcher.Server:GetComputerVersion",
-            ) as _:
-                pass
+    # @tag("about")
+    # @task
+    # def admin_about(self):
+    #     if self.admin_token:
+    #         with self.rest(
+    #             "POST",
+    #             f"https://{self.admin_api_host}/api.pts?otype=Watcher.Server&method=GetComputerVersion&token={self.admin_token}",
+    #             headers={
+    #                 "Host": self.admin_api_host,
+    #                 "Referer": f"{self.host}/",
+    #             },
+    #             json={"GUID": self.computer_guid},
+    #             name="Watcher.Server:GetComputerVersion",
+    #         ) as _:
+    #             pass
 
-    @tag("watcher")
-    @task(200)
-    def watcher_comp_info(self):
-        if self.admin_token:
-            with self.rest(
-                "POST",
-                f"https://{self.admin_api_host}/api.pts?otype=Watcher.Server&method=GetComputerInfo&token={self.admin_token}",
-                headers={
-                    "Host": self.admin_api_host,
-                    "Referer": f"{self.host}/",
-                },
-                json={
-                    "GUID": self.computer_guid,
-                    "Version": 1,
-                    "PackagesDate": datetime_to_excel(datetime.now()),
-                    "ProcessID": self.pid,
-                    "Updated": True,
-                },
-                name="Watcher.Server:GetComputerInfo",
-            ) as _:
-                pass
+    # @tag("watcher")
+    # @task(200)
+    # def watcher_comp_info(self):
+    #     if self.admin_token:
+    #         with self.rest(
+    #             "POST",
+    #             f"https://{self.admin_api_host}/api.pts?otype=Watcher.Server&method=GetComputerInfo&token={self.admin_token}",
+    #             headers={
+    #                 "Host": self.admin_api_host,
+    #                 "Referer": f"{self.host}/",
+    #             },
+    #             json={
+    #                 "GUID": self.computer_guid,
+    #                 "Version": 1,
+    #                 "PackagesDate": datetime_to_excel(datetime.now()),
+    #                 "ProcessID": self.pid,
+    #                 "Updated": False,
+    #             },
+    #             name="Watcher.Server:GetComputerInfo",
+    #         ) as _:
+    #             pass
 
-    @tag("watcher")
-    @task(100)
-    def watcher_signal_client(self):
-        if self.admin_token_global:
-            with self.rest(
-                "POST",
-                f"https://{self.admin_api_host}/api.pts?otype=Admin.MainServer&method=SignalClient&token={self.admin_token_global}",
-                headers={
-                    "Host": self.admin_api_host,
-                    "Referer": f"{self.host}/",
-                },
-                json={
-                    "GUID": self.computer_guid,
-                    "Key": self.dcc_instance_guid,
-                    "Date": datetime_to_excel(datetime.now()),
-                },
-                name="Admin.MainServer:SignalClient",
-            ) as _:
-                pass
+    # @tag("watcher")
+    # @task(100)
+    # def watcher_signal_client(self):
+    #     if self.admin_token_global:
+    #         with self.rest(
+    #             "POST",
+    #             f"https://{self.admin_api_host}/api.pts?otype=Admin.MainServer&method=SignalClient&token={self.admin_token_global}",
+    #             headers={
+    #                 "Host": self.admin_api_host,
+    #                 "Referer": f"{self.host}/",
+    #             },
+    #             json={
+    #                 "GUID": self.computer_guid,
+    #                 "Key": self.dcc_instance_guid,
+    #                 "Date": datetime_to_excel(datetime.now()),
+    #             },
+    #             name="Admin.MainServer:SignalClient",
+    #         ) as _:
+    #             pass
 
     @tag("processinfo")
     @task(100)
@@ -419,9 +419,14 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                 pass
             self.summary_changed = False
 
-    @tag("history")
-    @task(20)
-    def dcc_history(self):
+    def __dcc_history(
+        self,
+        *,
+        name="",
+        condition=None,
+        having=None,
+        from_archive=False,
+    ):
         if self.dcc_token and self.pid:
             with self.rest(
                 "POST",
@@ -430,11 +435,11 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Host": self.dcc_api_host,
                 },
                 json={
-                    "Condition": "({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
-                    "Having": "(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
-                    "FromArchive": False,
+                    "Condition": condition,
+                    "Having": having,
+                    "FromArchive": from_archive,
                 },
-                name="DCC::Alarms:HistoryCount",
+                name="DCC::Alarms:Count"+name,
             ) as _:
                 pass
             with self.rest(
@@ -448,13 +453,31 @@ class DCCUser(FastHttpUser, DCCWebSocket):
                     "Length": 100,
                     "OrderC": [1],
                     "OrderT": ["DESC"],
-                    "Condition": "({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
-                    "Having": "(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
-                    "FromArchive": False,
+                    "Condition": condition,
+                    "Having": having,
+                    "FromArchive": from_archive,
                 },
-                name="DCC::Alarms:HistoryList",
+                name="DCC::Alarms:List"+name,
             ) as _:
                 pass
+
+    @tag("history")
+    @task(20)
+    def dcc_history_24h(self):
+        self.__dcc_history(
+            name=" - 24H",
+            condition="({1} > DATE_SUB(@currTimeUTC, INTERVAL 24 HOUR))",
+            having="(JSON_SEARCH({20}, 'one', '%') IS NULL OR JSON_CONTAINS({20}, '[\"BUILDING\"]')) AND (JSON_SEARCH({21}, 'one', '%') IS NULL OR JSON_CONTAINS({21}, '[\"Caregiver\"]'))",
+        )
+
+    @tag("history-huge")
+    @task
+    def dcc_history_huge(self):
+        self.__dcc_history(
+            name=" - 1MON",
+            condition="({1} > DATE_SUB(@currTimeUTC, INTERVAL 1 MONTH))",
+            having=None,
+        )
 
     @tag("residents")
     @task(10)
