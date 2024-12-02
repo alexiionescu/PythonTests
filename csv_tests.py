@@ -104,6 +104,7 @@ def run(path: Path, basename: str, seats: int, county: str | None, filter: str |
     ]
     df_perc = pd.DataFrame(tr_dict, columns=["Candidat", "Votes", "Votes%"])
     df_perc["Seats"] = app.compute("dhondt", df_perc.Votes.to_list(), seats)
+    df_perc["Seats%"] = df_perc.Seats * 100 / seats
     print(df_perc.sort_values("Votes", ascending=False))
     print(
         f"\nTotal votes: {act_votes} from {max_votes} ({100 * act_votes / max_votes:.02f}%)"
@@ -113,23 +114,20 @@ def run(path: Path, basename: str, seats: int, county: str | None, filter: str |
 def parse_args():
     parser = ArgumentParser(description=f"{Path(__file__).name} argument parser")
 
-    parser.add_argument("--basename", default="pv_part_cnty_eup_", help="csv base name")
+    parser.add_argument("--basename", help="csv base name")
     parser.add_argument("--county", default=None, help="csv file name")
     parser.add_argument(
         "--path", default="csv_files", help="csv files folder path", type=Path
     )
     parser.add_argument(
         "--url",
-        default="https://prezenta.roaep.ro/europarlamentare09062024/data/csv/sicpv/",
         help="base url for csv files download",
     )
     parser.add_argument("--no-download", action="store_true", help="disable download")
-    parser.add_argument("--seats", default=33, help="number of seats")
+    parser.add_argument("--seats", default=100, help="number of seats", type=int)
     parser.add_argument("--filter", default=None, help="pandas filter expression")
 
     result, _ = parser.parse_known_args()
-    if not result.basename.endswith("_"):
-        result.basename += "_"
 
     return result
 
@@ -137,6 +135,6 @@ def parse_args():
 if __name__ == "__main__":
     pd.options.display.float_format = "{:.1f}".format
     args = parse_args()
-    if not args.no_download:
+    if args.url and not args.no_download:
         download(args.path, args.basename, args.url, args.county)
     run(args.path, args.basename, args.seats, args.county, args.filter)
